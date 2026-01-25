@@ -1,5 +1,6 @@
 // THIS IS ONLY A SNAPSHOT
 // NOTE THAT OBJECTS DO NOT WORK IN THIS VERSION
+// THIS IS THE FIRST VERSION OF HOPPERLANG WITH IS COMPILED TO C++
 #include <iostream>
 #include <fstream>
 #include <string>
