@@ -1,4 +1,0 @@
-str in;
-in#scan;
-str output = "Output: " + in;
-output#print;
