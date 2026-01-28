@@ -37,10 +37,11 @@ The first snapshot of HopperLang is interpreted, the second is Compiled, but to 
 The compiler.cpp is in C++17. 
 
 1. Build with the build.sh: ./build.sh
-2. Compile: ./hplc main.hpl output.o
-3. Execute: clang output.o -o program
-            ./program
-4. Done!
+2. Now you have a hplc file (should be about 600.000 lines code)
+3. Compile the hplc file: ./hplc main.hpl output.o
+4. Link output.o: clang output.o -o program
+5. Execute program: ./program
+6. Done!
 
 IMPORTANT:
 YOUR PROJECT STRUCTURE SHOULD BE:
