@@ -8,7 +8,7 @@ The following example contains every feature of the Alpha0.1 version:
 
 int a = 1 + 2; 
 bool b = 4 > 8;
-hashmap*****<str> c;
+hashmap\*\*\*\*\*<str> c;
 hashmap[][][][][]<int> d = {{(8,7,9,90,0), 0x64}, {(9,9,9,9,9), 5}};
 object e = {
     int id = 6543;
@@ -29,3 +29,34 @@ I think you understand the first two lines. The following two lines are a little
 Now we habe an Object. The syntax of objects in HopperLang is very common and similar to many other languages. After creating the object, we access to the variables in it. 
 After that you can see a example for print. Directly integradet methods, you can access with arg#method; or #method;. 
 Same thing with #scan. with arg#scan; you can do a cin << arg(cpp). In the end there is a small example for inputs and prints. 
+
+The first snapshot of HopperLang is interpreted, the second is Compiled, but to C++, now this wonderful masterpiece is directly compiled to native code by C++. 
+
+# How to Compile HPL-Code
+
+The compiler.cpp is in C++17. 
+
+1. Build with the build.sh: ./build.sh
+2. Compile: ./hplc main.hpl output.o
+3. Execute: clang output.o -o program
+            ./program
+4. Done!
+
+IMPORTANT:
+YOUR PROJECT STRUCTURE SHOULD BE:
+
+HopperLang(ROOT_FOLDER)
+-.vscode
+-llvm
+-zstd
+build.sh
+CMakeLists.txt
+compiler.cpp
+hplc
+LICENSE
+main.hpl
+output.o
+program
+README.md
+
+Some files are created by executing the commands (output.o, programm). You need to add the llvm16 lib and zstd.
