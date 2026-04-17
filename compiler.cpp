@@ -1,17 +1,19 @@
 // (c) Copyright TrichterIH
-// HopperLang Compiler v1.0.0
+// HopperLang Compiler v1.0.0 - FIXED
 // HopperLang (.hpl) -> Native Code Compiler (via LLVM)
 // Requires C++17
 #include <iostream>
 #include <fstream>
+#include <filesystem>
+#include <iterator>
 #include <string>
+#include <string_view>
 #include <cctype>
 #include <vector>
 #include <map>
 #include <memory>
 #include <sstream>
 
-// LLVM Headers
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/Module.h"
 #include "llvm/IR/IRBuilder.h"
@@ -31,11 +33,12 @@
 using namespace llvm;
 
 enum TokenType {
+    IMPORT,
     INT, STRING, BOOLEAN, FLOAT, DOUBLE, LONG, 
     HASHMAP, OBJECT,
     OPEN_BRACKET, CLOSE_BRACKET, OPEN_PAREN, CLOSE_PAREN, OPEN_BRACE, CLOSE_BRACE, 
     IDENT, NUMBER, HEX_NUMBER, STRING_LITERAL, 
-    PLUS, MULTI, EQUAL, HIGHER, LOWER, BACKSLASH, DOLLAR, ELLIPSIS, 
+    PLUS, MULTI, EQUAL, HIGHER, LOWER, BACKSLASH, DOLLAR,QUESTION_MARK ,ELLIPSIS, 
     IF, WHILE, TIMES, RETURN, 
     PRINT, 
     HASH, QUOTE, DOUBLE_QUOTE, DOT, COMMA, SEMICOLON, STAR, END, INVALID
@@ -45,6 +48,9 @@ struct Token {
     TokenType type;
     std::string text;
 };
+
+// Forward declarations
+struct FunctionDecl;
 
 // LLVM Code Generator
 class LLVMCodeGen {
@@ -108,7 +114,7 @@ public:
         
         // Create main function
         FunctionType* mainType = FunctionType::get(builder.getInt32Ty(), false);
-        mainFunc = Function::Create(mainType, Function::ExternalLinkage, "main", module.get());
+        mainFunc = Function::Create(mainType, Function::ExternalLinkage, "__hpl_entry", module.get());
         BasicBlock* entry = BasicBlock::Create(context, "entry", mainFunc);
         builder.SetInsertPoint(entry);
     }
@@ -121,15 +127,12 @@ public:
         return tmpBuilder.CreateAlloca(type, nullptr, varName);
     }
     
-    // Alle Funktionen generieren
-    void generateFunctions(std::vector<std::unique_ptr<FunctionDecl>>& functions) {
-        for (auto& func : functions) {
-            func->codegen(*this);
-        }
-    }
+    // Alle Funktionen generieren - Declaration only (implementation after FunctionDecl)
+    void generateFunctions(std::vector<std::unique_ptr<FunctionDecl>>& functions);
     
     AllocaInst* createEntryBlockAlloca(const std::string& varName, Type* type) {
-        IRBuilder<> tmpBuilder(&mainFunc->getEntryBlock(), mainFunc->getEntryBlock().begin());
+        Function* targetFunc = builder.GetInsertBlock()->getParent();
+        IRBuilder<> tmpBuilder(&targetFunc->getEntryBlock(), targetFunc->getEntryBlock().begin());
         return tmpBuilder.CreateAlloca(type, nullptr, varName);
     }
     
@@ -235,8 +238,6 @@ enum class ExprKind {
     HashmapLiteral,
     Call
 };
-
-struct FunctionDecl;
 
 struct Expr {
     ExprKind kind;
@@ -548,11 +549,13 @@ struct FunctionDecl {
             stmt->codegen(gen);
         }
         
-        // 7. Falls kein explizites return: return 0 oder void
-        if (returnType == INT) {
-            gen.builder.CreateRet(gen.builder.getInt32(0));
-        } else {
-            gen.builder.CreateRetVoid();
+        // 7. Kein explizites return: return 0 || void
+        if (!gen.builder.GetInsertBlock()->getTerminator()) {
+            if (returnType == INT) {
+                gen.builder.CreateRet(gen.builder.getInt32(0));
+            } else {
+                gen.builder.CreateRetVoid();
+            }
         }
         
         return func;
@@ -736,6 +739,13 @@ struct ExitStatement : Statement {
     }
 };
 
+// Implementation of LLVMCodeGen::generateFunctions (must be after FunctionDecl definition)
+void LLVMCodeGen::generateFunctions(std::vector<std::unique_ptr<FunctionDecl>>& functions) {
+    for (auto& func : functions) {
+        func->codegen(*this);
+    }
+}
+
 class Lexer {
     const std::string& input;
     size_t pos = 0;
@@ -768,7 +778,8 @@ public:
             size_t start = pos;
             while (pos < input.size() && (isalnum(input[pos]) || input[pos] == '_')) pos++;
             std::string word = input.substr(start, pos - start);
-            if (word == "int") return {INT, word};
+            if (word == "import" || word == "IMPORT") return {IMPORT, word};
+            else if (word == "int") return {INT, word};
             else if (word == "str") return {STRING, word};
             else if (word == "bool") return {BOOLEAN, word};
             else if (word == "float") return {FLOAT, word};
@@ -806,6 +817,7 @@ public:
             case '<': return {LOWER, "<"};
             case '#': return {HASH, "#"};
             case '$': return {DOLLAR, "$"};
+            case '?': return {QUESTION_MARK, "?"};
             case '\'': return {QUOTE, "\'"};
             case '.': return {DOT, "."};
             case ',': return {COMMA, ","};
@@ -822,19 +834,22 @@ class Parser {
     void nextToken() { currentToken = lexer.getNextToken(); }
     
     void skipComplexTypeAnnotations() {
-        while (currentToken.type == STAR || 
-               currentToken.type == BACKSLASH ||
-               currentToken.type == OPEN_BRACKET || 
-               currentToken.type == CLOSE_BRACKET ||
-               currentToken.type == LOWER ||
-               currentToken.type == HIGHER ||
-               currentToken.type == OPEN_PAREN ||
-               currentToken.type == CLOSE_PAREN ||
-               currentToken.type == COMMA) {
-            nextToken();
-            if (currentToken.type == IDENT || currentToken.type == NUMBER) nextToken();
-        }
+        
+    while (currentToken.type == STAR || 
+           currentToken.type == BACKSLASH ||
+           currentToken.type == OPEN_BRACKET || 
+           currentToken.type == CLOSE_BRACKET) {
+        nextToken();
     }
+    
+    if (currentToken.type == LOWER) {
+        nextToken();  // 
+        while (currentToken.type != HIGHER && currentToken.type != END) {
+            nextToken();
+        }
+        if (currentToken.type == HIGHER) nextToken();
+    }
+}
 
     // Parse Funktion: $int max(int a, int b) { ... }
     FunctionDecl* parseFunction() {
@@ -897,10 +912,14 @@ class Parser {
             Statement* stmt = parseStatement();
             if (stmt) {
                 body.push_back(std::unique_ptr<Statement>(stmt));
+            } else {
+                nextToken();
             }
         }
         
         if (currentToken.type == CLOSE_BRACE) nextToken();
+
+        std::cout << "Function '" << name << "' parsed, body size: " << body.size() << "\n";
         
         auto* func = new FunctionDecl();
         func->returnType = returnType;
@@ -1116,6 +1135,7 @@ class Parser {
     }
 
     Statement* parseAssignment() {
+        bool isNumber = (currentToken.type == NUMBER);
         std::string objName = currentToken.text;
         nextToken();
         
@@ -1132,9 +1152,13 @@ class Parser {
                 return new PrintStatement(new IdentExpr(objName));
             }
             if (currentToken.type == RETURN || (currentToken.type == IDENT && currentToken.text == "return")) {
-            nextToken();
-            if (currentToken.type == SEMICOLON) nextToken();
-            return new ReturnStatement(new IdentExpr(objName));
+                nextToken();
+                if (currentToken.type == SEMICOLON) nextToken();
+                
+                if (isNumber) {
+                    return new ReturnStatement(new NumberExpr(std::stoi(objName)));
+                }
+                return new ReturnStatement(new IdentExpr(objName));
             }
             if (currentToken.type == IDENT && currentToken.text == "stopWithExitCode") {
                 nextToken();
@@ -1197,6 +1221,7 @@ class Parser {
         return nullptr;
     }
 
+
 public:
     std::vector<std::unique_ptr<FunctionDecl>> functions;
 
@@ -1211,8 +1236,10 @@ public:
                 FunctionDecl* func = parseFunction();
                 if (func) {
                     functions.push_back(std::unique_ptr<FunctionDecl>(func));
-                    continue;
+                } else {
+                    nextToken();
                 }
+                continue;
             }
             
             // Normale Statements
@@ -1228,35 +1255,146 @@ public:
     }
 };
 
-int main(int argc, char* argv[]) {
-    std::cout << "HopperLang LLVM Compiler gestartet\n";
+// Utility function - MOVED BEFORE Preprocessor
+bool ends_with(const std::string& s, const std::string& suffix) {
+    if (s.size() < suffix.size()) return false;
+    return s.compare(s.size() - suffix.size(), suffix.size(), suffix) == 0;
+}
+
+class Preprocessor {
+private:
+    std::string& sourceCode;
     
-    std::string inputPath = "main.hpl";
-    std::string outputPath = "output.o";
+    // Hilfsfunktion: Datei einlesen
+    std::string readFile(const std::string& path) {
+        std::ifstream file(path);
+        if (!file) {
+            std::cerr << "Preprocessor Error: Could not open file: " << path << "\n";
+            return "";
+        }
+        return std::string((std::istreambuf_iterator<char>(file)), 
+                          std::istreambuf_iterator<char>());
+    }
+    
+    // Hilfsfunktion: Alle .hpl Dateien in einem Verzeichnis finden
+    std::vector<std::string> getHplFilesInDirectory(const std::string& dir) {
+        std::vector<std::string> files;
+        try {
+            for (const auto& entry : std::filesystem::directory_iterator(dir)) {
+                // Festlegen der Dateienendung
+                if (entry.is_regular_file() && ends_with(entry.path().string(), ".hpl")) {
+                    files.push_back(entry.path().string());
+                }
+            }
+        } catch (const std::filesystem::filesystem_error& e) {
+            std::cerr << "Preprocessor Error: " << e.what() << "\n";
+        }
+        return files;
+    }
+    
+    // Hauptfunktion: Import-Anweisungen verarbeiten
+    void processImports() {
+        std::string result;
+        size_t pos = 0;
+        
+        while (pos < sourceCode.size()) {
+            // Suche nach "<?import "
+            if (pos + 9 < sourceCode.size() && 
+                sourceCode.substr(pos, 2) == "<?" &&
+                sourceCode.substr(pos + 2, 6) == "import") {
+                
+                // Überspringe "<?import "
+                pos += 8;
+                while (pos < sourceCode.size() && std::isspace(sourceCode[pos])) pos++;
+                
+                // Lese den Pfad
+                size_t pathStart = pos;
+                while (pos < sourceCode.size() && sourceCode[pos] != '>') pos++;
+                
+                std::string importPath = sourceCode.substr(pathStart, pos - pathStart);
+                
+                // Entferne Whitespace am Ende
+                while (!importPath.empty() && std::isspace(importPath.back())) {
+                    importPath.pop_back();
+                }
+                
+                // Überspringe '>'
+                if (pos < sourceCode.size() && sourceCode[pos] == '>') pos++;
+                
+                std::cout << "Processing import: " << importPath << "\n";
+                
+                // Verarbeite den Import
+                if (ends_with(importPath, "*")) {
+                    // Wildcard-Import: Alle .hpl Dateien im Verzeichnis
+                    std::string dir = importPath.substr(0, importPath.size() - 1);
+                    std::vector<std::string> files = getHplFilesInDirectory(dir);
+                    
+                    for (const auto& file : files) {
+                        std::string content = readFile(file);
+                        if (!content.empty()) {
+                            result += "\n// Imported from: " + file + "\n";
+                            result += content;
+                            result += "\n";
+                        }
+                    }
+                } else {
+                    // Einzelner Datei-Import
+                    std::string content = readFile(importPath);
+                    if (!content.empty()) {
+                        result += "\n// Imported from: " + importPath + "\n";
+                        result += content;
+                        result += "\n";
+                    }
+                }
+            } else {
+                // Normales Zeichen übernehmen
+                result += sourceCode[pos];
+                pos++;
+            }
+        }
+        
+        sourceCode = result;
+    }
+
+public:
+    Preprocessor(std::string& code) : sourceCode(code) {}
+    
+    void process() {
+        std::cout << "Running preprocessor...\n";
+        processImports();
+        std::cout << "Preprocessor finished.\n";
+    }
+};
+
+void compileHpl(std::string inputPath, std::string outputPath, int argc, char* argv[]) {
+    std::cout << "HopperLang LLVM Compiler gestartet\n";
     
     if (argc > 1) inputPath = argv[1];
     if (argc > 2) outputPath = argv[2];
     
     std::ifstream file(inputPath.c_str());
     if (!file) {
-        std::cerr << "Fehler: Datei " + inputPath + " nicht gefunden.\n";
-        return 1;
+        std::cerr << "Error: File " + inputPath + " not found.\n";
+        return;
     }
 
     std::string code((std::istreambuf_iterator<char>(file)),
                      std::istreambuf_iterator<char>());
 
+    Preprocessor preprocessor(code);
+    preprocessor.process();
+
     Lexer lexer(code);
     Parser parser(lexer);
     
-    std::vector<std::unique_ptr<Statement> > statements = parser.parseProgram();
-    auto functions = parser.functions;
-    
-    std::cout << "Generiere LLVM IR...\n";
+    std::vector<std::unique_ptr<Statement>> statements = parser.parseProgram();
+    auto& functions = parser.functions;
     
     LLVMCodeGen gen("HopperLang");
 
     gen.generateFunctions(functions);
+
+    gen.builder.SetInsertPoint(&gen.mainFunc->getEntryBlock());
     
     for (size_t i = 0; i < statements.size(); i++) {
         statements[i]->codegen(gen);
@@ -1265,24 +1403,24 @@ int main(int argc, char* argv[]) {
     gen.finish();
     
     if (!gen.verify()) {
-        std::cerr << "Modul-Verifikation fehlgeschlagen!\n";
-        return 1;
+        std::cerr << "Module-Verification failed!\n";
+        return;
     }
     
-    std::cout << "\n=== LLVM IR ===\n";
-    gen.print();
+    //gen.print();
     std::cout << "\n";
     
-    std::cout << "Generiere Object-Datei...\n";
     if (!gen.emitObjectFile(outputPath)) {
-        std::cerr << "Fehler beim Erzeugen der Object-Datei!\n";
-        return 1;
+        std::cerr << "Error creating Object-File!\n";
+        return;
     }
+
     
-    std::cout << "Object-Datei wurde nach " << outputPath << " geschrieben\n";
-    std::cout << "\nLinke mit:\n";
-    std::cout << "  clang " << outputPath << " -o program\n";
-    std::cout << "  ./program\n";
-    
-    return 0;
+    return;
+}
+
+int main(int argc, char* argv[]) {
+    std::cout << "\n=== HOPPERLANG ===\n";
+
+    compileHpl("main.hpl", "output.o", argc, argv);
 }
