@@ -1,6 +1,8 @@
 # HopperLang
 A Coding Language made for Programmers. Try it out and LOVE it!
 
+Buy me a coffee: trichterih.dev@gmail.com
+
 # How to use it
 Create a filee main.h63 in the same directory where the main.cpp is. 
 
