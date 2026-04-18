@@ -1,5 +1,3 @@
-<import hdk_0*>
-
 $int main() {
     int a = 1 + 2; 
     bool b = 4 > 8;
