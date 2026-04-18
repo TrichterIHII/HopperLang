@@ -1,7 +1,6 @@
 // (c) Copyright TrichterIH
-// HopperLang Compiler v1.0.0 - FIXED
+// HopperLang Compiler v1.3.1
 // HopperLang (.hpl) -> Native Code Compiler (via LLVM)
-// Requires C++17
 #include <iostream>
 #include <fstream>
 #include <filesystem>
@@ -402,6 +401,36 @@ struct Statement {
     virtual void codegen(LLVMCodeGen& gen) = 0;
 };
 
+struct IfStatement : Statement {
+    std::unique_ptr<Expr> condition;
+    std::vector<std::unique_ptr<Statement>> body;
+
+    IfStatement(Expr* cond, std::vector<std::unique_ptr<Statement>> b) : condition(cond), body(std::move(b)) {}
+
+    void codegen(LLVMCodeGen& gen) override {
+        Value* cond = condition->codegen(gen);
+        if (!cond) return;
+
+        Function* func = gen.builder.GetInsertBlock()->getParent();
+
+        BasicBlock* thenBlock = BasicBlock::Create(gen.context, "if.then", func);
+        BasicBlock* mergeBlock = BasicBlock::Create(gen.context, "if.merge", func);
+
+        gen.builder.CreateCondBr(cond, thenBlock, mergeBlock);
+
+        gen.builder.SetInsertPoint(thenBlock);
+        for (auto& stmt : body) {
+            if (gen.builder.GetInsertBlock()->getTerminator()) break;
+            stmt->codegen(gen);
+        }
+        if (!gen.builder.GetInsertBlock()->getTerminator()) {
+            gen.builder.CreateBr(mergeBlock);
+        }
+
+        gen.builder.SetInsertPoint(mergeBlock);
+    }
+};
+
 struct Declaration : Statement {
     TokenType type;
     std::string name;
@@ -546,6 +575,9 @@ struct FunctionDecl {
         
         // 6. Body generieren
         for (auto& stmt : body) {
+            if (gen.builder.GetInsertBlock()->getTerminator()) {
+                break;
+            }
             stmt->codegen(gen);
         }
         
@@ -586,6 +618,20 @@ struct ReturnStatement : Statement {
         } else {
             gen.builder.CreateRetVoid();
         }
+    }
+};
+
+// If-Statement
+struct SimpleAssignment : Statement {
+    std::string name;
+    std::unique_ptr<Expr> value;
+    SimpleAssignment(const std::string& n, Expr* v) : name(n), value(v) {}
+    
+    void codegen(LLVMCodeGen& gen) override {
+        AllocaInst* alloca = gen.namedValues[name];
+        if (!alloca) return;
+        Value* val = value->codegen(gen);
+        if (val) gen.builder.CreateStore(val, alloca);
     }
 };
 
@@ -753,76 +799,84 @@ public:
     Lexer(const std::string& src) : input(src) {}
 
     Token getNextToken() {
-        while (pos < input.size() && isspace(input[pos])) pos++;
-        if (pos == input.size()) return {END, ""};
+        while(true) {
+            while (pos < input.size() && isspace(input[pos])) pos++;
+            if (pos == input.size()) return {END, ""};
 
-        char c = input[pos];
+            // Skip comments
+            if (pos + 1 < input.size() && input[pos] == '/' && input[pos + 1] == '/') {
+                while(pos < input.size() && input[pos] != '\n') pos++;
+                continue;
+            }
 
-        if (c == '0' && pos + 1 < input.size() && input[pos + 1] == 'x') {
-            pos += 2;
-            size_t start = pos;
-            while (pos < input.size() && isxdigit(input[pos])) pos++;
-            return {HEX_NUMBER, input.substr(start - 2, pos - start + 2)};
-        }
+            char c = input[pos];
 
-        if (c == '"') {
+            if (c == '0' && pos + 1 < input.size() && input[pos + 1] == 'x') {
+                pos += 2;
+                size_t start = pos;
+                while (pos < input.size() && isxdigit(input[pos])) pos++;
+                return {HEX_NUMBER, input.substr(start - 2, pos - start + 2)};
+            }
+
+            if (c == '"') {
+                pos++;
+                size_t start = pos;
+                while (pos < input.size() && input[pos] != '"') pos++;
+                std::string str = input.substr(start, pos - start);
+                if (pos < input.size()) pos++;
+                return {STRING_LITERAL, str};
+            }
+
+            if (isalpha(c)) {
+                size_t start = pos;
+                while (pos < input.size() && (isalnum(input[pos]) || input[pos] == '_')) pos++;
+                std::string word = input.substr(start, pos - start);
+                if (word == "import" || word == "IMPORT") return {IMPORT, word};
+                else if (word == "int") return {INT, word};
+                else if (word == "str") return {STRING, word};
+                else if (word == "bool") return {BOOLEAN, word};
+                else if (word == "float") return {FLOAT, word};
+                else if (word == "double") return {DOUBLE, word};
+                else if (word == "long") return {LONG, word};
+                else if (word == "hashmap") return {HASHMAP, word};
+                else if (word == "object") return {OBJECT, word};
+                else if (word == "print") return {PRINT, word};
+                else if (word == "if") return {IF, word};
+                else if (word == "while") return {WHILE, word};
+                else if (word == "times") return {TIMES, word};
+                else if (word == "return") return {RETURN, word};
+                else return {IDENT, word};
+            }
+
+            if (isdigit(c)) {
+                size_t start = pos;
+                while (pos < input.size() && isdigit(input[pos])) pos++;
+                return {NUMBER, input.substr(start, pos - start)};
+            }
+
             pos++;
-            size_t start = pos;
-            while (pos < input.size() && input[pos] != '"') pos++;
-            std::string str = input.substr(start, pos - start);
-            if (pos < input.size()) pos++;
-            return {STRING_LITERAL, str};
-        }
-
-        if (isalpha(c)) {
-            size_t start = pos;
-            while (pos < input.size() && (isalnum(input[pos]) || input[pos] == '_')) pos++;
-            std::string word = input.substr(start, pos - start);
-            if (word == "import" || word == "IMPORT") return {IMPORT, word};
-            else if (word == "int") return {INT, word};
-            else if (word == "str") return {STRING, word};
-            else if (word == "bool") return {BOOLEAN, word};
-            else if (word == "float") return {FLOAT, word};
-            else if (word == "double") return {DOUBLE, word};
-            else if (word == "long") return {LONG, word};
-            else if (word == "hashmap") return {HASHMAP, word};
-            else if (word == "object") return {OBJECT, word};
-            else if (word == "print") return {PRINT, word};
-            else if (word == "if") return {IF, word};
-            else if (word == "while") return {WHILE, word};
-            else if (word == "times") return {TIMES, word};
-            else if (word == "return") return {RETURN, word};
-            else return {IDENT, word};
-        }
-
-        if (isdigit(c)) {
-            size_t start = pos;
-            while (pos < input.size() && isdigit(input[pos])) pos++;
-            return {NUMBER, input.substr(start, pos - start)};
-        }
-
-        pos++;
-        switch(c) {
-            case '\\': return {BACKSLASH, "\\"};
-            case '+': return {PLUS, "+"};
-            case '*': return {STAR, "*"};
-            case '=': return {EQUAL, "="};
-            case '(': return {OPEN_PAREN, "("};
-            case ')': return {CLOSE_PAREN, ")"};
-            case '[': return {OPEN_BRACKET, "["};
-            case ']': return {CLOSE_BRACKET, "]"};
-            case '{': return {OPEN_BRACE, "{"};
-            case '}': return {CLOSE_BRACE, "}"};
-            case '>': return {HIGHER, ">"};
-            case '<': return {LOWER, "<"};
-            case '#': return {HASH, "#"};
-            case '$': return {DOLLAR, "$"};
-            case '?': return {QUESTION_MARK, "?"};
-            case '\'': return {QUOTE, "\'"};
-            case '.': return {DOT, "."};
-            case ',': return {COMMA, ","};
-            case ';': return {SEMICOLON, ";"};
-            default: return {INVALID, std::string(1, c)};
+            switch(c) {
+                case '\\': return {BACKSLASH, "\\"};
+                case '+': return {PLUS, "+"};
+                case '*': return {STAR, "*"};
+                case '=': return {EQUAL, "="};
+                case '(': return {OPEN_PAREN, "("};
+                case ')': return {CLOSE_PAREN, ")"};
+                case '[': return {OPEN_BRACKET, "["};
+                case ']': return {CLOSE_BRACKET, "]"};
+                case '{': return {OPEN_BRACE, "{"};
+                case '}': return {CLOSE_BRACE, "}"};
+                case '>': return {HIGHER, ">"};
+                case '<': return {LOWER, "<"};
+                case '#': return {HASH, "#"};
+                case '$': return {DOLLAR, "$"};
+                case '?': return {QUESTION_MARK, "?"};
+                case '\'': return {QUOTE, "\'"};
+                case '.': return {DOT, "."};
+                case ',': return {COMMA, ","};
+                case ';': return {SEMICOLON, ";"};
+                default: return {INVALID, std::string(1, c)};
+            }
         }
     }
 };
@@ -909,10 +963,13 @@ class Parser {
         
         std::vector<std::unique_ptr<Statement>> body;
         while (currentToken.type != CLOSE_BRACE && currentToken.type != END) {
+            std::cout << "  token: '" << currentToken.text 
+                    << "' type=" << currentToken.type << "\n";
             Statement* stmt = parseStatement();
             if (stmt) {
                 body.push_back(std::unique_ptr<Statement>(stmt));
             } else {
+                std::cout << "  → nullptr skipped\n";
                 nextToken();
             }
         }
@@ -1007,6 +1064,7 @@ class Parser {
     
     // Parse return: x#return oder curVal#return
     Statement* parseReturnStatement(const std::string& varName) {
+    
         if (currentToken.type == HASH) {
             nextToken();
             if (currentToken.type == IDENT && currentToken.text == "return") {
@@ -1138,6 +1196,13 @@ class Parser {
         bool isNumber = (currentToken.type == NUMBER);
         std::string objName = currentToken.text;
         nextToken();
+
+        if (currentToken.type == EQUAL) {
+            nextToken();
+            Expr* val = parseExpr();
+            if (currentToken.type == SEMICOLON) nextToken();
+            return new SimpleAssignment(objName, val);
+        }
         
         if (currentToken.type == HASH) {
             nextToken();
@@ -1200,6 +1265,33 @@ class Parser {
     }
 
     Statement* parseStatement() {
+        if (currentToken.type == IF) {
+            nextToken();
+
+            if (currentToken.type != OPEN_PAREN) return nullptr;
+            nextToken();
+
+            Expr* condition = parseExpr();
+            if (currentToken.type == CLOSE_PAREN) nextToken();
+
+            bool hasBlock = (currentToken.type == OPEN_BRACE);
+            if (hasBlock) nextToken();
+
+            std::vector<std::unique_ptr<Statement>> body;
+            if (hasBlock) {
+                while (currentToken.type != CLOSE_BRACE && currentToken.type != END) {
+                    Statement* s = parseStatement();
+                    if (s) body.push_back(std::unique_ptr<Statement>(s));
+                    else nextToken();
+                }
+                if (currentToken.type == CLOSE_BRACE) nextToken();
+            } else {
+                Statement* s = parseStatement();
+                if (s) body.push_back(std::unique_ptr<Statement>(s));
+            }
+
+            return new IfStatement(condition, std::move(body));
+        }
         if (currentToken.type == PRINT) {
             nextToken();
             Expr* expr = parseExpr();
@@ -1304,7 +1396,7 @@ private:
                 sourceCode.substr(pos + 2, 6) == "import") {
                 
                 // Überspringe "<?import "
-                pos += 8;
+                pos += 9;
                 while (pos < sourceCode.size() && std::isspace(sourceCode[pos])) pos++;
                 
                 // Lese den Pfad
@@ -1367,7 +1459,6 @@ public:
 };
 
 void compileHpl(std::string inputPath, std::string outputPath, int argc, char* argv[]) {
-    std::cout << "HopperLang LLVM Compiler gestartet\n";
     
     if (argc > 1) inputPath = argv[1];
     if (argc > 2) outputPath = argv[2];
@@ -1397,6 +1488,9 @@ void compileHpl(std::string inputPath, std::string outputPath, int argc, char* a
     gen.builder.SetInsertPoint(&gen.mainFunc->getEntryBlock());
     
     for (size_t i = 0; i < statements.size(); i++) {
+        if (gen.builder.GetInsertBlock()->getTerminator()) {
+            break;
+        }
         statements[i]->codegen(gen);
     }
     
