@@ -1,25 +1,19 @@
-$int max(int... values) {
-    int curVal;
-    times(values.len()) {
-        if (values[i] > curVal) curVal = values[i];
+$int max(int a, int b) {
+    int res = a;
+    if (a < b) {
+        res = b;
     }
-    curVal#return;
+    b#return;
 }
-$int min(int... values) {
-    int curVal;
-    times(values.len()) {
-        if (values[i] < curVal) curVal = values[i];
+$int min(int a, int b) {
+    int res = a;
+    if (a > b) {
+        res = b;
     }
-    curVal#return;
+    b#return;
 }
 $int power(int val1, int val2) {
     int result = val1;
     times(val2 - 1) result * val1;
     result#return;
 }
-$float power(float val1, int val2) {
-    float result = val1;
-    times(val2 - 1) result * val1;
-    result#return;
-}
-
