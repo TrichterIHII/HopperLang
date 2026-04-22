@@ -38,7 +38,7 @@ The first snapshot of HopperLang is interpreted, the second is Compiled, but to 
 
 The compiler.cpp is in C++17. 
 
-1. Build with the build.sh: ./build.sh
+1. Build with the build.sh: ./build.sh     (ONLY MAC SUPPORT!)
 2. Now you have a hplc file (should be about 600.000 lines code)
 3. Compile the hplc file: ./hplc main.hpl output.o
 4. Link output.o: clang output.o -o program
