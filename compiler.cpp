@@ -141,7 +141,7 @@ public:
     
     // String concatenation helper
     Value* concatStrings(Value* str1, Value* str2) {
-        // Allocate buffer (1024 bytes should be enough)
+        // Allocate buffer (1024 bytes)
         Value* bufferSize = builder.getInt64(1024);
         Value* buffer = builder.CreateCall(mallocFunc, {bufferSize}, "strbuf");
         
@@ -522,7 +522,7 @@ struct Declaration : Statement {
 struct Parameter {
     TokenType type;
     std::string name;
-    bool isVarArgs;  // für int... values
+    bool isVarArgs;  // varargs are not ready yet
 };
 
 // Funktions-Deklaration
