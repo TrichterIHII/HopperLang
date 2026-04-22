@@ -785,7 +785,7 @@ struct ExitStatement : Statement {
     }
 };
 
-// Implementation of LLVMCodeGen::generateFunctions (must be after FunctionDecl definition)
+// Implementation of LLVMCodeGen::generateFunctions
 void LLVMCodeGen::generateFunctions(std::vector<std::unique_ptr<FunctionDecl>>& functions) {
     for (auto& func : functions) {
         func->codegen(*this);
@@ -803,7 +803,7 @@ public:
             while (pos < input.size() && isspace(input[pos])) pos++;
             if (pos == input.size()) return {END, ""};
 
-            // Skip comments
+            // Skip comments (//...)
             if (pos + 1 < input.size() && input[pos] == '/' && input[pos + 1] == '/') {
                 while(pos < input.size() && input[pos] != '\n') pos++;
                 continue;
@@ -907,7 +907,7 @@ class Parser {
 
     // Parse Funktion: $int max(int a, int b) { ... }
     FunctionDecl* parseFunction() {
-        if (currentToken.type != DOLLAR) return nullptr;
+        if (currentToken.type != DOLLAR) return nullptr; // TODO: private functions
         nextToken();
         
         // Return-Typ
