@@ -13,7 +13,7 @@ $int min(int a, int b) {
     b#return;
 }
 
-// power() doesn't work yet because times() loop isn't implemented.
+//fixme
 $int power(int val1, int val2) {
     int result = val1;
     times(val2 - 1) result * val1;
