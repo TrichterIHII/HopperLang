@@ -3,14 +3,14 @@ $int max(int a, int b) {
     if (a < b) {
         res = b;
     }
-    b#return;
+    res#return;
 }
 $int min(int a, int b) {
     int res = a;
     if (a > b) {
         res = b;
     }
-    b#return;
+    res#return;
 }
 
 //fixme
