@@ -1,21 +1,8 @@
+<?import hdk_0/math.hpl>
+
 $int main() {
-    int a = 1 + 2; 
-    bool b = 4 > 8;
-    hashmap\*\*\*\*\*<str> c;
-    hashmap[][][][][]<int> d = {{(8,7,9,90,0), 0x64}, {(9,9,9,9,9), 5}};
-    object e = {
-        int id = 6543;
-        str name = "moinsen";
-    };
-
-    e.id = 5;
-    e.name#print;
-
-    a.to_s#print;
-
-    int alter;
-    alter#scan;
-    str output = "Deine eingabe ist: " + alter.to_s;
-    output#print;
-    0#return;
+    int i = max(8, 9);
+    times (3) {
+        i#return;
+    }
 }
