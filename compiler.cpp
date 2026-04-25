@@ -897,7 +897,7 @@ class Parser {
     }
     
     if (currentToken.type == LOWER) {
-        nextToken();  // 
+        nextToken(); 
         while (currentToken.type != HIGHER && currentToken.type != END) {
             nextToken();
         }
