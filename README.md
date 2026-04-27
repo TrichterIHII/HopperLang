@@ -3,40 +3,40 @@ A Coding Language made for Programmers. Try it out and LOVE it!
 
 Buy me a coffee: trichterih.dev@gmail.com
 
-# How to use it
-Create a filee main.h63 in the same directory where the main.cpp is. 
+# How to use it (Syntax)
+Create a filee main.hpl in the same directory where the compiler.cpp is. 
+(Or use a custom path in the 1st arg behind hplc (out of the build.sh||build.mk).)
 
-The following example contains every feature of the Alpha0.1 version:
+1. Imports:
+    Use <?import path/to/file.hpl> to import a file.
+    Use <?import path/to/dir> to import a all hpl-files in a directory.
 
-int a = 1 + 2; 
-bool b = 4 > 8;
-hashmap\*\*\*\*\*<str> c;
-hashmap[][][][][]<int> d = {{(8,7,9,90,0), 0x64}, {(9,9,9,9,9), 5}};
-object e = {
-    int id = 6543;
-    str name = "moinsen";
-};
+2. Methods:
+    Use $[datatype] func_name([dt] arg1, [dt]... args) {body} to declare a function.
+    The $stands for a public method which is also accessable in other hpl files.
+    Replace [datatype] with the datatype which the function will return.
+    Replace func_name whith the name of the function (Note: $main() is reserved for main-method!).
+    Args are same like in java ect. (Note: Varargs not implementated yet!).
+    Use var#return; to return a variable (Note: only working with a single variable!).
+    Access to methods with func_name(arg, args);
+    --Note: implementated functions/methods in other files can't have same names! tipp: use classname_funcname()!
 
-e.id = 5;
-e.name#print;
+3. Sys/Compiler Actions / Hard-Methods:
+    use # behind a variable, to use a sys/compiler action:
+    --#return: return statement
+    --#print: sys out
+    --#scan: sys in
 
-a.to_s#print;
-
-int alter;
-alter#scan;
-str output = "Deine eingabe ist: " + alter.to_s;
-output#print;
-
-I think you understand the first two lines. The following two lines are a little uncommon. In line 3 we have a hashmap with five dimensions and it contains strings. In the fourth line we have also a 5 dimensional hashmap, but it contains integers and habe brackets instead of stars. The idea of this is, that the stars are the short variante to define a 5D hashmap. But in the brackets, you can define the size of every dimension. In the angle brackets we have the datatype the hashmap contains, and after that we can set a name for the hashmap. You can set a valur in {} and in () is the key: {(key), value}. 
-Now we habe an Object. The syntax of objects in HopperLang is very common and similar to many other languages. After creating the object, we access to the variables in it. 
-After that you can see a example for print. Directly integradet methods, you can access with arg#method; or #method;. 
-Same thing with #scan. with arg#scan; you can do a cin << arg(cpp). In the end there is a small example for inputs and prints. 
-
-The first snapshot of HopperLang is interpreted, the second is Compiled, but to C++, now this wonderful masterpiece is directly compiled to native code by C++. 
+4. Statements
+    if() us like in c, c++, ect...
+    times(int n) {} reputates body n times
+    
 
 # How to Compile HPL-Code
 
 The compiler.cpp is in C++17. 
+
+Needed: your hpl code including main.hpl (or custom path), compiler, build file
 
 1. Build with the build.sh: ./build.sh     (ONLY MAC SUPPORT!)
 2. Now you have a hplc file (should be about 600.000 lines code)
@@ -63,3 +63,14 @@ program
 README.md
 
 Some files are created by executing the commands (output.o, programm). You need to add the llvm16 lib and zstd.
+
+
+# HDKs
+
+Newest HDK: hdk_0 (
+
+1. math.hpl
+    math_max(int a, int b) - returns the higher number
+    math_min(int a, int b) - returns the lowest number
+    math_pow(int a, int n) - returns a^n
+
