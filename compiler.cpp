@@ -1,5 +1,5 @@
 // (c) Copyright TrichterIH
-// HopperLang Compiler v1.3.1
+// HopperLang Compiler v3.3.1
 // HopperLang (.hpl) -> Native Code Compiler (via LLVM)
 #include <iostream>
 #include <fstream>
@@ -118,15 +118,15 @@ public:
         builder.SetInsertPoint(entry);
     }
 
-    Function* currentFunction;  // Aktuelle Funktion (für return)
+    Function* currentFunction;  // Current function
     
-    // Neue Funktion: Alloca in Funktions-Entry-Block
+    // Alloca in Funktions-Entry-Block
     AllocaInst* createFunctionBlockAlloca(const std::string& varName, Type* type, Function* func) {
         IRBuilder<> tmpBuilder(&func->getEntryBlock(), func->getEntryBlock().begin());
         return tmpBuilder.CreateAlloca(type, nullptr, varName);
     }
     
-    // Alle Funktionen generieren - Declaration only (implementation after FunctionDecl)
+    // Gen all Declaration-Only-Funktions
     void generateFunctions(std::vector<std::unique_ptr<FunctionDecl>>& functions);
     
     AllocaInst* createEntryBlockAlloca(const std::string& varName, Type* type) {
@@ -522,7 +522,7 @@ struct Declaration : Statement {
 struct Parameter {
     TokenType type;
     std::string name;
-    bool isVarArgs;  // varargs are not ready yet
+    bool isVarArgs;  // TODO: varargs
 };
 
 // Funktions-Deklaration
@@ -533,23 +533,23 @@ struct FunctionDecl {
     std::vector<std::unique_ptr<Statement>> body;
     
     Function* codegen(LLVMCodeGen& gen) {
-        // 1. Parameter-Typen sammeln
+        // Collect parameter types
         std::vector<Type*> paramTypes;
         for (auto& param : parameters) {
             if (param.isVarArgs) {
-                // Varargs = Pointer + Länge
-                paramTypes.push_back(gen.builder.getInt32Ty());  // Array
-                paramTypes.push_back(gen.builder.getInt32Ty());     // Länge
+                // Varargs = Pointer + length
+                paramTypes.push_back(gen.builder.getInt32Ty());  // array
+                paramTypes.push_back(gen.builder.getInt32Ty());     // length
             } else {
                 paramTypes.push_back(getTypeFromToken(gen, param.type));
             }
         }
         
-        // 2. Funktions-Typ erstellen
+        // Create function type
         Type* retType = getTypeFromToken(gen, returnType);
         FunctionType* funcType = FunctionType::get(retType, paramTypes, false);
         
-        // 3. Funktion erstellen
+        // Create function
         Function* func = Function::Create(
             funcType, 
             Function::ExternalLinkage, 
@@ -557,11 +557,11 @@ struct FunctionDecl {
             gen.module.get()
         );
         
-        // 4. Entry-Block erstellen
+        // Create entry block
         BasicBlock* entry = BasicBlock::Create(gen.context, "entry", func);
         gen.builder.SetInsertPoint(entry);
         
-        // 5. Parameter in lokale Variablen kopieren
+        // copy parameter in local variables
         unsigned idx = 0;
         for (auto& param : parameters) {
             Argument* arg = func->getArg(idx++);
@@ -573,7 +573,7 @@ struct FunctionDecl {
             gen.namedValues[param.name] = alloca;
         }
         
-        // 6. Body generieren
+        // Generate body
         for (auto& stmt : body) {
             if (gen.builder.GetInsertBlock()->getTerminator()) {
                 break;
@@ -581,7 +581,7 @@ struct FunctionDecl {
             stmt->codegen(gen);
         }
         
-        // 7. Kein explizites return: return 0 || void
+        // No expricit return: return 0 || void
         if (!gen.builder.GetInsertBlock()->getTerminator()) {
             if (returnType == INT) {
                 gen.builder.CreateRet(gen.builder.getInt32(0));
@@ -635,7 +635,7 @@ struct SimpleAssignment : Statement {
     }
 };
 
-// Funktionsaufruf
+// Function-Call
 struct CallExpr : Expr {
     std::string functionName;
     std::vector<std::unique_ptr<Expr>> arguments;
@@ -644,20 +644,20 @@ struct CallExpr : Expr {
         : Expr(ExprKind::Call), functionName(name) {}
     
     Value* codegen(LLVMCodeGen& gen) override {
-        // Funktion finden
+        // find function
         Function* func = gen.module->getFunction(functionName);
         if (!func) {
             std::cerr << "Unknown function: " << functionName << "\n";
             return nullptr;
         }
         
-        // Argumente generieren
+        // find args
         std::vector<Value*> args;
         for (auto& arg : arguments) {
             args.push_back(arg->codegen(gen));
         }
         
-        // Funktionsaufruf
+        // function call
         return gen.builder.CreateCall(func, args, "calltmp");
     }
 };
@@ -905,31 +905,31 @@ class Parser {
     }
 }
 
-    // Parse Funktion: $int max(int a, int b) { ... }
+    // Parse Funktion - example: $int max(int a, int b) { ... }
     FunctionDecl* parseFunction() {
-        if (currentToken.type != DOLLAR) return nullptr; // TODO: private functions
+        if (currentToken.type != DOLLAR) return nullptr; // TODO: private functions (DOLLAR is for public funktions)
         nextToken();
         
-        // Return-Typ
+        // return type
         TokenType returnType = currentToken.type;
         nextToken();
         
-        // Funktionsname
+        // function name
         if (currentToken.type != IDENT) return nullptr;
         std::string name = currentToken.text;
         nextToken();
         
-        // Parameter: (int a, int b)
+        // parameter: (int a, int b)
         if (currentToken.type != OPEN_PAREN) return nullptr;
         nextToken();
         
         std::vector<Parameter> parameters;
         while (currentToken.type != CLOSE_PAREN) {
-            // Parameter-Typ
+            // parameter type
             TokenType paramType = currentToken.type;
             nextToken();
             
-            // Varargs?
+            // vararg check (varargs are not ready yet)
             bool isVarArgs = false;
             if (currentToken.type == DOT) {
                 nextToken();
@@ -942,14 +942,14 @@ class Parser {
                 }
             }
             
-            // Parameter-Name
+            // parameter name
             if (currentToken.type != IDENT) break;
             std::string paramName = currentToken.text;
             nextToken();
             
             parameters.push_back({paramType, paramName, isVarArgs});
+
             
-            // Komma?
             if (currentToken.type == COMMA) {
                 nextToken();
             }
@@ -986,15 +986,14 @@ class Parser {
         return func;
     }
     
-    // Parse Funktionsaufruf: max(5, 10)
+    // Parse Funktion-Call - example: max(5, 10)
     Expr* parseFunctionCall(const std::string& name) {
         auto* call = new CallExpr(name);
         
-        // (
         if (currentToken.type != OPEN_PAREN) return nullptr;
         nextToken();
         
-        // Argumente
+        // args
         while (currentToken.type != CLOSE_PAREN && currentToken.type != END) {
             Expr* arg = parseExpr();
             if (arg) {
@@ -1034,12 +1033,12 @@ class Parser {
             std::string name = currentToken.text;
             nextToken();
             
-            // Funktionsaufruf?
+            // Funktion-Call
             if (currentToken.type == OPEN_PAREN) {
                 return parseFunctionCall(name);
             }
             
-            // Member-Access?
+            // Member-Access check
             if (currentToken.type == DOT) {
                 nextToken();
                 if (currentToken.type == IDENT) {
@@ -1062,7 +1061,7 @@ class Parser {
         return nullptr;
     }
     
-    // Parse return: x#return oder curVal#return
+    // Parse return: x#return or curVal#return
     Statement* parseReturnStatement(const std::string& varName) {
     
         if (currentToken.type == HASH) {
@@ -1159,7 +1158,7 @@ class Parser {
         nextToken();
         
         // Skip complex type annotations (*, [], <>, etc.)
-        skipComplexTypeAnnotations();
+        skipComplexTypeAnnotations(); // TODO: better handling
 
         if (currentToken.type != IDENT) return nullptr;
         std::string name = currentToken.text;
@@ -1323,7 +1322,7 @@ public:
         std::vector<std::unique_ptr<Statement>> stmts;
         
         while (currentToken.type != END) {
-            // Funktion?
+            // func check
             if (currentToken.type == DOLLAR) {
                 FunctionDecl* func = parseFunction();
                 if (func) {
@@ -1334,7 +1333,7 @@ public:
                 continue;
             }
             
-            // Normale Statements
+            // normal statements
             Statement* stmt = parseStatement();
             if (stmt) {
                 stmts.push_back(std::unique_ptr<Statement>(stmt));
@@ -1357,7 +1356,6 @@ class Preprocessor {
 private:
     std::string& sourceCode;
     
-    // Hilfsfunktion: Datei einlesen
     std::string readFile(const std::string& path) {
         std::ifstream file(path);
         if (!file) {
@@ -1368,13 +1366,12 @@ private:
                           std::istreambuf_iterator<char>());
     }
     
-    // Hilfsfunktion: Alle .hpl Dateien in einem Verzeichnis finden
     std::vector<std::string> getHplFilesInDirectory(const std::string& dir) {
         std::vector<std::string> files;
         try {
             for (const auto& entry : std::filesystem::directory_iterator(dir)) {
-                // Festlegen der Dateienendung
-                if (entry.is_regular_file() && ends_with(entry.path().string(), ".hpl")) {
+                // set fileending
+                if (entry.is_regular_file() && ends_with(entry.path().string(), ".hpl")) { // ! THIS IS THE ACCEPTED FILE ENDING OF HPL FILES
                     files.push_back(entry.path().string());
                 }
             }
@@ -1384,40 +1381,39 @@ private:
         return files;
     }
     
-    // Hauptfunktion: Import-Anweisungen verarbeiten
     void processImports() {
         std::string result;
         size_t pos = 0;
         
         while (pos < sourceCode.size()) {
-            // Suche nach "<?import "
+            // look for "<?import "
             if (pos + 9 < sourceCode.size() && 
                 sourceCode.substr(pos, 2) == "<?" &&
                 sourceCode.substr(pos + 2, 6) == "import") {
                 
-                // Überspringe "<?import "
+                // skip "<?import "
                 pos += 9;
                 while (pos < sourceCode.size() && std::isspace(sourceCode[pos])) pos++;
                 
-                // Lese den Pfad
+                // read path
                 size_t pathStart = pos;
                 while (pos < sourceCode.size() && sourceCode[pos] != '>') pos++;
                 
                 std::string importPath = sourceCode.substr(pathStart, pos - pathStart);
                 
-                // Entferne Whitespace am Ende
+                // delete whitespace
                 while (!importPath.empty() && std::isspace(importPath.back())) {
                     importPath.pop_back();
                 }
                 
-                // Überspringe '>'
+                // skip '>'
                 if (pos < sourceCode.size() && sourceCode[pos] == '>') pos++;
                 
                 std::cout << "Processing import: " << importPath << "\n";
                 
-                // Verarbeite den Import
+                // process import
                 if (ends_with(importPath, "*")) {
-                    // Wildcard-Import: Alle .hpl Dateien im Verzeichnis
+                    // Wildcard-Import: all .hpl files in directory
                     std::string dir = importPath.substr(0, importPath.size() - 1);
                     std::vector<std::string> files = getHplFilesInDirectory(dir);
                     
@@ -1430,7 +1426,7 @@ private:
                         }
                     }
                 } else {
-                    // Einzelner Datei-Import
+                    // single file import
                     std::string content = readFile(importPath);
                     if (!content.empty()) {
                         result += "\n// Imported from: " + importPath + "\n";
@@ -1439,7 +1435,7 @@ private:
                     }
                 }
             } else {
-                // Normales Zeichen übernehmen
+                // copy normal character
                 result += sourceCode[pos];
                 pos++;
             }
@@ -1518,3 +1514,7 @@ int main(int argc, char* argv[]) {
 
     compileHpl("main.hpl", "output.o", argc, argv);
 }
+
+// |----------|
+//    |----|
+//      ||
