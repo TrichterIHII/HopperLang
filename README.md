@@ -1,76 +1,239 @@
 # HopperLang
-A Coding Language made for Programmers. Try it out and LOVE it!
 
-Buy me a coffee: trichterih.dev@gmail.com
+A programming language made for programmers. Try it out and enjoy it!
 
-# How to use it (Syntax)
-Create a filee main.hpl in the same directory where the compiler.cpp is. 
-(Or use a custom path in the 1st arg behind hplc (out of the build.sh||build.mk).)
+**Support:** [trichterih.dev@gmail.com](mailto:trichterih.dev@gmail.com)
 
-1. Imports:
-    Use <?import path/to/file.hpl> to import a file.
-    Use <?import path/to/dir> to import a all hpl-files in a directory.
+---
 
-2. Methods:
-    Use $[datatype] func_name([dt] arg1, [dt]... args) {body} to declare a function.
-    The $stands for a public method which is also accessable in other hpl files.
-    Replace [datatype] with the datatype which the function will return.
-    Replace func_name whith the name of the function (Note: $main() is reserved for main-method!).
-    Args are same like in java ect. (Note: Varargs not implementated yet!).
-    Use var#return; to return a variable (Note: only working with a single variable!).
-    Access to methods with func_name(arg, args);
-    --Note: implementated functions/methods in other files can't have same names! tipp: use classname_funcname()!
+# How to use HopperLang (Syntax)
 
-3. Sys/Compiler Actions / Hard-Methods:
-    use # behind a variable, to use a sys/compiler action:
-    --#return: return statement
-    --#print: sys out
-    --#scan: sys in
+Create a `main.hpl` file in the same directory as `hplc` (or specify another source file as the first argument).
 
-4. Statements
-    if() us like in c, c++, ect...
-    times(int n) {} reputates body n times
-    
+## 1. Imports
 
-# How to Compile HPL-Code
+Import a single file:
 
-The compiler.cpp is in C++17. 
+```text
+<?import path/to/file.hpl>
+```
 
-Needed: your hpl code including main.hpl (or custom path), compiler, build file
+Import all `.hpl` files from a directory:
 
-1. Build with the build.sh: ./build.sh     (ONLY MAC SUPPORT!)
-2. Now you have a hplc file (should be about 600.000 lines code)
-3. Compile the hplc file: ./hplc main.hpl output.o
-4. Link output.o: clang output.o -o program
-5. Execute program: ./program
-6. Done!
+```text
+<?import path/to/directory/*>
+```
 
-IMPORTANT:
-YOUR PROJECT STRUCTURE SHOULD BE:
+---
 
-HopperLang(ROOT_FOLDER)
--.vscode
--llvm
--zstd
-build.sh
-CMakeLists.txt
-compiler.cpp
-hplc
-LICENSE
-main.hpl
-output.o
-program
-README.md
+## 2. Functions
 
-Some files are created by executing the commands (output.o, programm). You need to add the llvm16 lib and zstd.
+Declare a public function:
 
+```text
+$[datatype] function_name([datatype] arg1, [datatype] arg2) {
+    ...
+}
+```
 
-# HDKs
+* `$` declares a public function that can also be accessed from imported `.hpl` files.
+* Replace `[datatype]` with the return type.
+* Replace `function_name` with your function name.
+* `$main()` is reserved for the program entry point.
+* Parameters work similarly to Java or C++.
+* Varargs (`...`) are planned but not implemented yet.
 
-Newest HDK: hdk_0 (
+Return a variable:
 
-1. math.hpl
-    math_max(int a, int b) - returns the higher number
-    math_min(int a, int b) - returns the lowest number
-    math_pow(int a, int n) - returns a^n
+```text
+variable#return;
+```
 
+Call a function:
+
+```text
+function_name(arg1, arg2);
+```
+
+**Note:** Functions from different files must currently have unique names. A recommended naming scheme is:
+
+```text
+math_max()
+string_split()
+player_move()
+```
+
+---
+
+## 3. Compiler / System Actions
+
+Append `#` to a variable to invoke a compiler action.
+
+Available actions:
+
+```text
+variable#print;
+variable#scan;
+variable#return;
+variable#stopWithExitCode;
+```
+
+Meaning:
+
+* `#print` – print the value
+* `#scan` – read user input
+* `#return` – return the value
+* `#stopWithExitCode` – terminate the program with the given exit code
+
+---
+
+## 4. Statements
+
+### If statement
+
+```text
+if(condition) {
+    ...
+}
+```
+
+### Loop
+
+```text
+times(n) {
+    ...
+}
+```
+
+Executes the body `n` times.
+
+---
+
+# Building the Compiler
+
+The HopperLang compiler is written in **C++17** and uses **LLVM**.
+
+## Requirements
+
+* LLVM (stored in `./llvm`)
+* Zstandard (`./zstd/lib/libzstd.a`)
+* clang++
+* C++17
+* zlib
+* ncurses
+* pthread
+
+---
+
+## Build using build.sh (recommended)
+
+Make the script executable:
+
+```bash
+chmod +x build.sh
+```
+
+Build the compiler:
+
+```bash
+./build.sh
+```
+
+The script automatically:
+
+* checks for `libzstd.a`
+* links all local LLVM libraries
+* builds `compiler.cpp`
+* creates the executable `hplc`
+
+---
+
+## Build using CMake
+
+Alternatively, build the project using the included `CMakeLists.txt`.
+
+```bash
+mkdir build
+cd build
+cmake ..
+cmake --build .
+```
+
+---
+
+# Compiling HopperLang Programs
+
+Compile a HopperLang source file:
+
+```bash
+./hplc main.hpl output.o
+```
+
+Link the generated object file:
+
+```bash
+clang output.o -o program
+```
+
+Run the program:
+
+```bash
+./program
+```
+
+---
+
+# Project Structure
+
+```text
+HopperLang/
+│
+├── .vscode/
+├── llvm/
+├── zstd/
+├── build.sh
+├── CMakeLists.txt
+├── compiler.cpp
+├── LICENSE
+├── README.md
+├── hplc
+├── main.hpl
+├── output.o
+└── program
+```
+
+`output.o`, `program`, and `hplc` are generated during the build process.
+
+---
+
+# HDKs (Hopper Development Kits)
+
+Current version:
+
+```text
+hdk_0
+```
+
+### math.hpl
+
+```text
+math_max(int a, int b)
+```
+
+Returns the larger value.
+
+```text
+math_min(int a, int b)
+```
+
+Returns the smaller value.
+
+```text
+math_pow(int a, int n)
+```
+
+Returns `aⁿ`.
+
+---
+
+Copyright (c) TrichterIH
